@@ -689,9 +689,16 @@ def process_batch(
     accent = resolve_accent(accent_color)
 
     # Read URLs
+    urls = []
+    filenames = []
     try:
         with open(batch_file, "r") as f:
-            urls = [line.strip() for line in f if line.strip()]
+            for line in f:
+                if stripped := line.strip():
+                    parts = stripped.split("\t", 1)
+                    urls.append(parts[0].strip())
+                    # Safely handles lines that might not have a tab/filename
+                    filenames.append(parts[1].strip() if len(parts) > 1 else "")
     except IOError as e:
         raise click.ClickException(f"Could not read batch file: {e}")
 
@@ -710,26 +717,30 @@ def process_batch(
     success_count = 0
     error_count = 0
 
-    for i, url in enumerate(urls, 1):
+    for i, url in enumerate(urls):
         console.print(
-            f"\n[bold]({i}/{len(urls)})[/bold] Processing: {url[:80]}..."
+            f"\n[bold]({i+1}/{len(urls)})[/bold] Processing: {url[:80]}..."
         )
 
         try:
             # Generate output filename
-            pano_id, _, _, _, _, _ = extract_from_maps_url(url)
-            if pano_id:
-                quality_suffix = f"_{quality}" if quality != "medium" else ""
-                fov_suffix = f"_{fov}deg" if fov and fov < 360 else ""
-                filter_suffix = (
-                    f"_{image_filter}" if image_filter != "none" else ""
-                )
-                filename = f"streetview_{pano_id}{quality_suffix}{fov_suffix}{filter_suffix}.{output_format}"
+            if filenames[i]:
+                filename = filenames[i]
                 output = str(output_path / filename)
             else:
-                output = str(
-                    output_path / f"streetview_{i:03d}.{output_format}"
-                )
+                pano_id, _, _, _, _, _ = extract_from_maps_url(url)
+                if pano_id:
+                    quality_suffix = f"_{quality}" if quality != "medium" else ""
+                    fov_suffix = f"_{fov}deg" if fov and fov < 360 else ""
+                    filter_suffix = (
+                        f"_{image_filter}" if image_filter != "none" else ""
+                    )
+                    filename = f"streetview_{pano_id}{quality_suffix}{fov_suffix}{filter_suffix}.{output_format}"
+                    output = str(output_path / filename)
+                else:
+                    output = str(
+                        output_path / f"streetview_{i:03d}.{output_format}"
+                    )
 
             process_single_url(
                 url=url,
